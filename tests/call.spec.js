@@ -58,7 +58,7 @@ test('T1c picker preselects the free slot when the other side is online', async 
   await waitState(a, 'waiting', 10000);
   const p = await cb.newPage();
   await p.goto(`/${SIGNAL}&room=${key}`);
-  await expect(p.locator('#who-hint')).toBeVisible({ timeout: 10000 });
+  await expect(p.locator('#who-hint')).toBeVisible({ timeout: 12000 });
   await expect(p.locator('#b-who-b')).toBeFocused();
   await expect(p.locator('#b-who-b')).toHaveClass(/primary/);
   await ca.close(); await cb.close();

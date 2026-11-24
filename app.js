@@ -87,17 +87,24 @@ function renderWho() {
   $('b-who-b').textContent = `I'm ${nameOf('b')}`;
 }
 
-// Bonus: if one side is already online, this device must be the other one. Preselect (focus) the free slot.
-// A probe claims a slot's id for a moment (a taken id means that side is online), then lets go.
+// Bonus: if one side is already online, this device must be the other one. Preselect the free slot.
+// The probe is an anonymous Peer (it never claims a real id) that tries to connect to a slot. An empty slot makes
+// the server answer "peer-unavailable" after its ~5 s expiry. Silence for 6.5 s means someone is there (they close
+// a stranger's connection without a word, so nothing is disturbed). Only a suggestion: both buttons always work.
 function probeOnline(id) {
   return new Promise((resolve) => {
     let p = null, done = false;
-    const end = (v) => { if (done) return; done = true; clearTimeout(t); try { p && p.destroy(); } catch {} resolve(v); };
-    const t = setTimeout(() => end(null), 4000);
+    const end = (v) => { if (done) return; done = true; clearTimeout(t); clearTimeout(t2); try { p && p.destroy(); } catch {} resolve(v); };
+    const t = setTimeout(() => end(null), 9000);
+    let t2 = null;
     try {
-      p = new window.Peer(id, { ...serverOptions(), debug: 0 });
-      p.on('open', () => end(false));
-      p.on('error', (e) => end(e && e.type === 'unavailable-id' ? true : null));
+      p = new window.Peer({ ...serverOptions(), debug: 0 });
+      p.on('error', (e) => end(e && e.type === 'peer-unavailable' ? false : null));
+      p.on('open', () => {
+        const c = p.connect(id, { reliable: true });
+        c.on('open', () => end(true));
+        t2 = setTimeout(() => end(true), 6500);
+      });
     } catch { end(null); }
   });
 }
