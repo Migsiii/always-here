@@ -1,5 +1,5 @@
 import { ROOM_KEY, parseKey, peerIds, authKey, sign, verify, randNonce } from './keys.js';
-import { createSignal } from './signal.js';
+import { createSignal, serverOptions } from './signal.js';
 import * as media from './media.js';
 
 // Nicknames only (never full names). a = the always-on side, b = the one who dials in.
@@ -10,10 +10,8 @@ const ICE_SERVERS = [];
 const graphemes = (t) => (typeof Intl !== 'undefined' && Intl.Segmenter
   ? Array.from(new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(t), (x) => x.segment)
   : Array.from(t));
-/** Trim, drop control and bidi-override characters, cap by characters (not UTF-16 units). */
-const cleanName = (t) => graphemes(String(t == null ? '' : t).replace(/[\p{Cc}\u202A-\u202E\u2066-\u2069\u200E\u200F\u061C]/gu, '').trim()).slice(0, NAME_MAX).join('').trim();
 // ---- relay (ICE servers) ----
-// A TURN login must never be in this public repo, so it travels in the invite link (&ice=) or is pasted
+// A TURN login must never be in this public repo, so it arrives in the address (&ice=) or is pasted
 // into Settings, and lives only in this browser's localStorage. It is never logged.
 const ICE_MAX = 4;
 function cleanIce(v) {
@@ -29,7 +27,6 @@ function cleanIce(v) {
   }
   return out;
 }
-const b64uEncode = (text) => btoa(String.fromCharCode(...new TextEncoder().encode(text))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const b64uDecode = (t) => {
   const b = atob(t.replace(/-/g, '+').replace(/_/g, '/'));
   return new TextDecoder('utf-8', { fatal: true }).decode(Uint8Array.from(b, (c) => c.charCodeAt(0)));
@@ -48,19 +45,6 @@ function iceFromLink(input) {
   return parseIce(v);
 }
 const initialOf = (t) => (graphemes(String(t || '').trim())[0] || '?').toUpperCase();
-function namesFromLink(input) {
-  const out = {};
-  for (const r of ['a', 'b']) {
-    const m = String(input).match(new RegExp('[#&?]n' + r + '=([^&#]*)'));
-    if (!m) continue;
-    let v = '';
-    try { v = decodeURIComponent(m[1]); } catch { continue; }
-    v = cleanName(v);
-    if (v) out[r] = v;
-  }
-  return out;
-}
-
 const $ = (id) => document.getElementById(id);
 const LS = 'ah.v1.';
 const store = {
@@ -76,17 +60,12 @@ let role = null; // 'a' = always-on side, 'b' = the one who dials in
 let state = 'setup';
 let lastMessage = null;
 
-const names = () => {
-  let n = {};
-  try { n = JSON.parse(store.get('names') || '{}'); } catch {}
-  return { a: n.a || PEOPLE.a, b: n.b || PEOPLE.b };
-};
-const nameOf = (r) => names()[r];
+const nameOf = (r) => PEOPLE[r];
 const other = () => (role === 'a' ? 'b' : 'a');
 const otherName = () => nameOf(other());
 
 // ---------- screens ----------
-const SCREENS = ['s-welcome', 's-who', 's-share', 's-ready', 's-wait', 's-call', 's-else'];
+const SCREENS = ['s-who', 's-ready', 's-wait', 's-call', 's-else'];
 function show(id) {
   for (const s of SCREENS) $(s).hidden = s !== id;
   const h = $(id).querySelector('h1');
@@ -94,31 +73,11 @@ function show(id) {
 }
 function say(text) { const l = $('live'); l.textContent = ''; setTimeout(() => { l.textContent = text; }, 50); }
 const storedIce = () => { try { return cleanIce(JSON.parse(store.get('ice') || '[]')) || []; } catch { return []; } };
-const inviteLink = (r) => {
-  const n = names();
-  const given = (() => { try { return JSON.parse(store.get('names') || '{}'); } catch { return {}; } })();
-  const ex = ['a', 'b'].filter((x) => given[x]).map((x) => `&n${x}=${encodeURIComponent(n[x])}`).join('');
-  const ice = storedIce();
-  const rl = ice.length ? `&ice=${b64uEncode(JSON.stringify(ice))}` : '';
-  return `${location.origin}${location.pathname}#k=${key}&r=${r}${ex}${rl}`;
-};
-
-async function copyText(text, inputEl) {
-  try { await navigator.clipboard.writeText(text); return true; } catch {}
-  try {
-    const el = inputEl || Object.assign(document.createElement('input'), { value: text });
-    if (!inputEl) document.body.appendChild(el);
-    el.select(); el.setSelectionRange(0, 9999);
-    const ok = document.execCommand('copy');
-    if (!inputEl) el.remove();
-    return ok;
-  } catch { return false; }
-}
+const iceList = () => [...(cleanIce(ICE_SERVERS) || []), ...storedIce()];
 
 // ---------- routing ----------
 function route() {
-  if (!key) { show('s-welcome'); state = 'setup'; return; }
-  if (!role) { renderWho(); show('s-who'); state = 'setup'; return; }
+  if (!role) { renderWho(); show('s-who'); state = 'setup'; preselectWho(); return; }
   if (!store.get('ready')) { show('s-ready'); state = 'setup'; return; }
   startRoom();
 }
@@ -128,79 +87,40 @@ function renderWho() {
   $('b-who-b').textContent = `I'm ${nameOf('b')}`;
 }
 
-async function adoptKey(input, fromFragment) {
-  const r = await parseKey(input);
-  if (!r.ok) return r;
-  $('wait-linkerr').hidden = true; // a good link replaces any earlier bad-link message
-  key = r.key;
-  store.set('key', key);
-  if (fromFragment) {
-    const m = String(input).match(/[#&]r=([ab])\b/);
-    if (m) { role = m[1]; store.set('role', role); }
-    const ice = iceFromLink(input);
-    if (ice) store.set('ice', JSON.stringify(ice));
-    const nn = namesFromLink(input);
-    if (nn.a || nn.b) {
-      let cur = {};
-      try { cur = JSON.parse(store.get('names') || '{}'); } catch {}
-      store.set('names', JSON.stringify({ ...cur, ...nn }));
-    }
-  }
-  return r;
+// Bonus: if one side is already online, this device must be the other one. Preselect (focus) the free slot.
+// A probe claims a slot's id for a moment (a taken id means that side is online), then lets go.
+function probeOnline(id) {
+  return new Promise((resolve) => {
+    let p = null, done = false;
+    const end = (v) => { if (done) return; done = true; clearTimeout(t); try { p && p.destroy(); } catch {} resolve(v); };
+    const t = setTimeout(() => end(null), 4000);
+    try {
+      p = new window.Peer(id, { ...serverOptions(), debug: 0 });
+      p.on('open', () => end(false));
+      p.on('error', (e) => end(e && e.type === 'unavailable-id' ? true : null));
+    } catch { end(null); }
+  });
 }
-
-function showLinkError(reason) {
-  const e = $('s-welcome').hidden ? $('wait-linkerr') : $('e-link'); // a stored key skips the welcome screen
-  e.textContent = reason === 'checksum'
-    ? 'That link looks incomplete. Ask for it again.'
-    : "That doesn't look like a room link.";
-  e.hidden = false;
+async function preselectWho() {
+  let ids;
+  try { ids = await peerIds(key); } catch { return; }
+  const [aOn, bOn] = await Promise.all([probeOnline(ids.a), probeOnline(ids.b)]);
+  if (role || state !== 'setup' || $('s-who').hidden) return;
+  const pick = aOn === true && bOn !== true ? 'b' : bOn === true && aOn !== true ? 'a' : null;
+  if (!pick) return;
+  $('s-who').dataset.suggest = pick;
+  $('b-who-' + pick).className = 'btn primary';
+  $('b-who-' + (pick === 'a' ? 'b' : 'a')).className = 'btn secondary';
+  $('b-who-' + pick).focus();
+  $('who-hint').textContent = `${nameOf(pick === 'a' ? 'b' : 'a')} is already here, so this is probably ${nameOf(pick)}.`;
+  $('who-hint').hidden = false;
 }
 
 function wireSetup() {
-  $('b-start').addEventListener('click', async () => {
-    key = await newKey();
-    role = 'a';
-    store.set('key', key); store.set('role', role);
-    $('i-share').value = inviteLink('b');
-    for (const r of ['a', 'b']) {
-      const inp = $('i-share-n' + r);
-      inp.addEventListener('input', () => {
-        let cur = {};
-        try { cur = JSON.parse(store.get('names') || '{}'); } catch {}
-        cur[r] = cleanName(inp.value);
-        if (!cur[r]) delete cur[r];
-        store.set('names', JSON.stringify(cur));
-        $('i-share').value = inviteLink('b');
-      });
-    }
-    $('b-share-native').hidden = !navigator.share;
-    show('s-share');
-  });
-
-  $('f-link').addEventListener('submit', async (ev) => {
-    ev.preventDefault();
-    $('e-link').hidden = true;
-    const v = $('i-link').value;
-    const r = await adoptKey(v, true);
-    if (!r.ok) { showLinkError(r.reason); return; }
-    $('i-link').value = '';
-    route();
-  });
-
+  // Picking who you are is the one first-run tap. It is also the gesture that unlocks sound and permissions.
   for (const b of [$('b-who-a'), $('b-who-b')]) {
-    b.addEventListener('click', () => { role = b.dataset.role; store.set('role', role); route(); });
+    b.addEventListener('click', () => { role = b.dataset.role; store.set('role', role); finishFirstRun(); });
   }
-
-  $('b-share-copy').addEventListener('click', async () => {
-    const ok = await copyText($('i-share').value, $('i-share'));
-    $('b-share-copy').querySelector('span').textContent = ok ? 'Copied' : 'Copy failed';
-    setTimeout(() => { $('b-share-copy').querySelector('span').textContent = 'Copy'; }, 2000);
-  });
-  $('b-share-native').addEventListener('click', () => {
-    navigator.share({ title: 'Always Here', text: 'Our room', url: $('i-share').value }).catch(() => {});
-  });
-  $('b-share-done').addEventListener('click', () => finishFirstRun());
   $('b-ready').addEventListener('click', () => finishFirstRun());
 }
 
@@ -232,12 +152,10 @@ async function finishFirstRun() {
 let sheetOpener = null;
 function openSheet(opener) {
   sheetOpener = opener;
-  $('i-name-a').value = nameOf('a');
-  $('i-name-b').value = nameOf('b');
   $('t-sheet').textContent = '';
   $('t-relay').textContent = storedIce().length ? 'A relay is set on this device.' : '';
   $('sheet').hidden = false;
-  $('i-name-a').focus();
+  $('i-relay').focus();
 }
 function closeSheet() {
   $('sheet').hidden = true;
@@ -257,12 +175,6 @@ function wireSettings() {
       else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
     }
   });
-  $('b-names').addEventListener('click', () => {
-    const n = { a: cleanName($('i-name-a').value), b: cleanName($('i-name-b').value) };
-    store.set('names', JSON.stringify(n));
-    $('t-sheet').textContent = 'Names saved.';
-    renderNames();
-  });
   $('b-relay').addEventListener('click', () => {
     const v = $('i-relay').value.trim();
     if (!v) { store.del('ice'); $('t-relay').textContent = 'Relay removed.'; }
@@ -276,21 +188,9 @@ function wireSettings() {
     resetNetFail();
     if (state === 'waiting') startRoom(); // nobody is connected: use it now. Otherwise it applies from the next connection.
   });
-  $('b-copy-b').addEventListener('click', async () => {
-    $('t-sheet').textContent = (await copyText(inviteLink('b'))) ? 'Invite link copied.' : 'Could not copy.';
-  });
-  $('b-copy-a').addEventListener('click', async () => {
-    $('t-sheet').textContent = (await copyText(inviteLink('a'))) ? 'Your link copied.' : 'Could not copy.';
-  });
-  let armed = null;
+  // Switch person: forget which of the two this device is. The room itself is fixed.
   $('b-forget').addEventListener('click', () => {
-    if (!armed) {
-      $('b-forget').textContent = 'Tap again to forget';
-      armed = setTimeout(() => { armed = null; $('b-forget').textContent = 'Forget this device'; }, 4000);
-      return;
-    }
-    clearTimeout(armed);
-    store.clear();
+    store.del('role'); store.del('ready');
     try { signal && signal.stop(); } catch {}
     location.replace(location.pathname);
   });
@@ -384,7 +284,7 @@ async function startRoom() {
   ids = await peerIds(key);
   authK = await authKey(key);
   if (!running || role !== myRole) return;
-  const sig = createSignal({ myId: ids[role], otherId: ids[other()], role, iceServers: storedIce() });
+  const sig = createSignal({ myId: ids[role], otherId: ids[other()], role, iceServers: iceList() });
   signal = sig;
   renderNetFail();
   sig.on('open', () => { if (state === 'starting') setState('waiting'); })
@@ -832,11 +732,11 @@ function wireResilience() {
   window.addEventListener('online', () => signal && signal.reconnect());
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) return;
-    if (!running && key && role && store.get('ready') && state !== 'elsewhere' && state !== 'setup') startRoom();
+    if (!running && role && store.get('ready') && state !== 'elsewhere' && state !== 'setup') startRoom();
     else healthCheck(true);
   });
   window.addEventListener('pageshow', (e) => {
-    if (e.persisted && key && role && store.get('ready')) startRoom();
+    if (e.persisted && role && store.get('ready')) startRoom();
   });
   window.addEventListener('pagehide', () => {
     if (!running || !signal) return;
@@ -900,15 +800,21 @@ async function boot() {
   wireControls();
   wireAlerts();
   wireResilience();
-  key = store.get('key');
-  role = store.get('role');
-  const frag = location.hash;
-  if (/[#&]k=/.test(frag)) {
-    const r = await adoptKey(frag, true);
-    history.replaceState(null, '', location.pathname + location.search);
-    if (!r.ok) { key = store.get('key'); route(); showLinkError(r.reason); return; }
+  // One fixed room. Older builds kept a generated key and names here; they are not used any more.
+  store.del('key'); store.del('names');
+  key = ROOM_KEY;
+  if (isLocal) { // tests only: an isolated room per test, so they do not collide on one signalling server
+    const r = new URLSearchParams(location.search).get('room');
+    if (r && (await parseKey(r)).ok) key = r;
   }
-  if (key && !(await parseKey(key)).ok) { store.clear(); key = role = null; }
+  role = store.get('role');
+  if (role !== 'a' && role !== 'b') role = null;
+  // Old invite links (#k= #r= #na= #nb=) are ignored. A relay (&ice=) is still accepted. The fragment is always stripped.
+  if (location.hash) {
+    const ice = iceFromLink(location.hash);
+    if (ice) store.set('ice', JSON.stringify(ice));
+    history.replaceState(null, '', location.pathname + location.search);
+  }
   route();
 }
 
@@ -925,7 +831,6 @@ if (isLocal) {
   window.__ah.debug.freeze = () => { frozen = true; };
   window.__ah.debug.fakeSleep = () => { lastTick = Date.now() - 20000; };
   window.__ah.debug.netFail = () => ({ streak: failStreak, gap: dialGapMs, shown: !$('wait-netfail').hidden });
-  window.__ah.debug.adopt = (t) => adoptKey(t, true);
   window.__ah.debug.relink = () => onLinkOpen();
   window.__ah.debug.handshake = () => ({ sentProof, theirProofOk, authed, gotHello, gotProof });
   window.__ah.debug.inject = (m) => onData(m);

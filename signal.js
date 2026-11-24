@@ -30,7 +30,7 @@ const isLocal = () => ['localhost', '127.0.0.1'].includes(location.hostname);
 const allPeers = new Set();
 if (isLocal()) window.__ahPeers = () => [...allPeers].filter((p) => !p.destroyed).length;
 
-function serverOptions() {
+export function serverOptions() {
   const o = { host: '0.peerjs.com', port: 443, secure: true, path: '/' };
   if (isLocal()) {
     const s = new URLSearchParams(location.search).get('signal');

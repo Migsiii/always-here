@@ -19,55 +19,21 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600&family=Raleway:wght@400;500;600&display=swap">
-  <link rel="stylesheet" href="./style.css?v=1">
+  <link rel="stylesheet" href="./style.css?v=2">
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
   <div id="live" class="sr-only" role="status" aria-live="polite"></div>
 
   <main id="main">
-    <!-- Welcome -->
-    <section id="s-welcome" class="screen" hidden aria-labelledby="h-welcome">
-      <div class="card">
-        <svg class="logo" aria-hidden="true"><use href="./icons.svg#heart-fill"/></svg>
-        <h1 id="h-welcome">Always Here</h1>
-        <p class="lead">A quiet little room for two. Open it, and when the other person is around, you're together.</p>
-        <button id="b-start" class="btn primary" type="button">Start our room</button>
-        <form id="f-link" class="stack" novalidate>
-          <label for="i-link">I have a link</label>
-          <input id="i-link" name="link" type="text" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Paste your room link" aria-describedby="e-link">
-          <p id="e-link" class="error" role="alert" hidden></p>
-          <button class="btn secondary" type="submit">Continue</button>
-        </form>
-      </div>
-    </section>
-
     <!-- Who's this -->
     <section id="s-who" class="screen" hidden aria-labelledby="h-who">
       <div class="card">
         <h1 id="h-who">Who's this?</h1>
         <p class="lead">Pick which one of you is using this device.</p>
+        <p id="who-hint" class="muted" role="status" hidden></p>
         <button id="b-who-a" class="btn primary" type="button" data-role="a"></button>
         <button id="b-who-b" class="btn secondary" type="button" data-role="b"></button>
-      </div>
-    </section>
-
-    <!-- Share -->
-    <section id="s-share" class="screen" hidden aria-labelledby="h-share">
-      <div class="card">
-        <h1 id="h-share">Send this link</h1>
-        <p class="lead">This link is the key to your room. Send it privately and never post it anywhere.</p>
-        <label for="i-share-na">Your name (optional)</label>
-        <input id="i-share-na" type="text" autocomplete="off" maxlength="24">
-        <label for="i-share-nb">Their name (optional)</label>
-        <input id="i-share-nb" type="text" autocomplete="off" maxlength="24">
-        <input id="i-share" class="mono" type="text" readonly aria-label="Invite link">
-        <p class="muted">Link format: <span class="mono">&lt;url&gt;#k=&lt;key&gt;&amp;r=b&amp;na=&lt;name a&gt;&amp;nb=&lt;name b&gt;</span>. Names travel only in the link, never in the code.</p>
-        <div class="row">
-          <button id="b-share-copy" class="btn secondary" type="button"><svg aria-hidden="true"><use href="./icons.svg#copy"/></svg><span>Copy</span></button>
-          <button id="b-share-native" class="btn secondary" type="button" hidden><svg aria-hidden="true"><use href="./icons.svg#share"/></svg><span>Share</span></button>
-        </div>
-        <button id="b-share-done" class="btn primary" type="button">Done</button>
       </div>
     </section>
 
@@ -92,7 +58,6 @@
         <p id="wait-status" class="status muted" role="status"></p>
         <p id="wait-netfail" class="error" role="alert" hidden>Couldn't connect on this network. Try Wi-Fi, or add a relay in Settings.</p>
         <p id="wait-media" class="error" role="alert" hidden>Camera or microphone is blocked. Allow them in your browser settings, then reopen or tap the page.</p>
-        <p id="wait-linkerr" class="error" role="alert" hidden></p>
         <div class="row center-row">
           <button id="chip-sound" class="chip" type="button" hidden><svg aria-hidden="true"><use href="./icons.svg#sound"/></svg><span>Enable sound</span></button>
           <button id="chip-alerts" class="chip" type="button" hidden><svg aria-hidden="true"><use href="./icons.svg#bell"/></svg><span>Turn on alerts</span></button>
@@ -149,24 +114,17 @@
         <button class="icon-btn" id="b-sheet-close" type="button" aria-label="Close settings"><svg aria-hidden="true"><use href="./icons.svg#close"/></svg></button>
       </div>
       <div class="stack">
-        <label for="i-name-a">First person's name</label>
-        <input id="i-name-a" type="text" autocomplete="off" maxlength="24">
-        <label for="i-name-b">Second person's name</label>
-        <input id="i-name-b" type="text" autocomplete="off" maxlength="24">
-        <button id="b-names" class="btn secondary" type="button">Save names</button>
         <label for="i-relay">Relay server (advanced)</label>
         <input id="i-relay" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Paste relay settings, or leave empty">
         <p id="t-relay" class="muted"></p>
         <button id="b-relay" class="btn secondary" type="button">Save relay</button>
-        <button id="b-copy-b" class="btn secondary" type="button">Copy invite link</button>
-        <button id="b-copy-a" class="btn secondary" type="button">Copy my own link</button>
         <p id="t-sheet" class="muted" role="status"></p>
-        <button id="b-forget" class="btn danger" type="button">Forget this device</button>
+        <button id="b-forget" class="btn danger" type="button">Switch person</button>
       </div>
     </div>
   </div>
 
-  <script src="./peerjs.min.js?v=1"></script>
-  <script type="module" src="./app.js?v=1"></script>
+  <script src="./peerjs.min.js?v=2"></script>
+  <script type="module" src="./app.js?v=2"></script>
 </body>
 </html>
