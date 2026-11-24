@@ -1,0 +1,14 @@
+{
+  "name": "always-here",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A tiny always-on video room for two.",
+  "scripts": {
+    "serve": "node tests/serve.mjs",
+    "test": "playwright test --workers=2"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "peer": "^1.0.2"
+  }
+}
