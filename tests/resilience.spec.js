@@ -138,24 +138,14 @@ test('M2c blocked-media note is visible on the waiting screen', async ({ browser
   await ca.close(); await cb.close();
 });
 
-test('R2 minors: bidi stripped, bad link shown with a stored key, input border contrast', async ({ browser, page }) => {
+test('R2 minors: input border contrast in Settings', async ({ browser, page }) => {
   const key = await freshKey(page);
   const ctx = await browser.newContext();
   const a = await openAs(ctx, key, 'a');
   await waitState(a, 'waiting', 10000);
-  // names with bidi overrides
-  const p2 = await ctx.newPage();
-  await p2.goto(`/?signal=localhost:9000#k=${key}&r=a&nb=${encodeURIComponent('\u202Eevil\u2066x')}`);
-  await expect(p2.locator('#h-wait')).toHaveText('Waiting for evilx…');
-  // mangled link while a key is stored: the error is visible on the waiting screen
-  const p3 = await ctx.newPage();
-  await p3.goto(`/?signal=localhost:9000#k=${key.slice(0, 5)}${key[5] === 'A' ? 'B' : 'A'}${key.slice(6)}&r=b`);
-  await expect(p3.locator('#wait-linkerr')).toBeVisible();
-  await expect(p3.locator('#wait-linkerr')).toContainText('incomplete');
-  // input border contrast >= 3:1 against the page background
-  const ratio = await p3.evaluate(() => {
+  const ratio = await a.evaluate(() => {
     const lum = (c) => { const [r, g, b] = c.match(/\d+/g).map(Number).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
-    const inp = document.getElementById('i-name-a');
+    const inp = document.getElementById('i-relay');
     const l1 = lum(getComputedStyle(inp).borderTopColor), l2 = lum(getComputedStyle(document.body).backgroundColor);
     return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
   });
@@ -241,15 +231,4 @@ test('S1.3 partial path (link opens, media never starts): media timeouts count, 
   await waitState(a, 'waiting', 10000);
   expect(await a.evaluate(() => window.__ah.localTracks())).toBe(0);
   await ca.close(); await cb.close();
-});
-
-test('Nit 3 the bad-link message is cleared once a valid link is adopted', async ({ browser, page }) => {
-  const key = await freshKey(page);
-  const ctx = await browser.newContext();
-  const a = await openAs(ctx, key, 'a');
-  await waitState(a, 'waiting', 10000);
-  await a.evaluate(() => { const e = document.getElementById('wait-linkerr'); e.textContent = 'x'; e.hidden = false; });
-  await a.evaluate(async (k) => { await window.__ah.debug.adopt('#k=' + k + '&r=a'); }, key);
-  await expect(a.locator('#wait-linkerr')).toBeHidden();
-  await ctx.close();
 });

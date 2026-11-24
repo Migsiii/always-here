@@ -19,18 +19,49 @@ const bothInCall = async (a, b, ms = 10000) => {
   for (const p of [a, b]) await p.waitForFunction(() => window.__ah.remoteLive(), null, { timeout: ms });
 };
 
-test('T1 mangled link is rejected on the welcome screen', async ({ page }) => {
+test('T1 empty storage, no fragment: straight to the "Who is this?" picker only, then waiting. No setup screens.', async ({ browser }) => {
+  const ctx = await browser.newContext();
+  const p = await ctx.newPage();
+  await p.goto(`/${SIGNAL}`);
+  await expect(p.locator('#h-who')).toBeVisible();
+  await expect(p.locator('#b-who-a')).toHaveText("I'm Bubiii");
+  await expect(p.locator('#b-who-b')).toHaveText("I'm baba 🐼");
+  for (const id of ['#s-welcome', '#s-share', '#f-link', '#i-link', '#b-start', '#b-share-done']) await expect(p.locator(id)).toHaveCount(0);
+  await p.click('#b-who-b');
+  await waitState(p, 'waiting', 10000);
+  await expect(p.locator('#h-wait')).toHaveText('Waiting for Bubiii…');
+  expect(await p.evaluate(() => localStorage.getItem('ah.v1.role'))).toBe('b');
+  // remembered: a reload goes straight to waiting, no picker
+  await p.reload();
+  await waitState(p, 'waiting', 10000);
+  await expect(p.locator('#s-who')).toBeHidden();
+  await ctx.close();
+});
+
+test('T1b old links (#k #r #na #nb) are ignored and stripped; stale key/names are dropped', async ({ browser }) => {
+  const ctx = await browser.newContext();
+  const p = await ctx.newPage();
+  await p.addInitScript(() => { if (!localStorage.getItem('seeded')) { localStorage.setItem('seeded', '1'); localStorage.setItem('ah.v1.key', 'old'); localStorage.setItem('ah.v1.names', '{"a":"X","b":"Y"}'); } });
+  await p.goto(`/${SIGNAL}#k=AAAAAAAAAAAAAAAAAAAAAAAAAA&r=a&na=Zed&nb=Yan`);
+  expect(p.url()).not.toContain('#');
+  await expect(p.locator('#h-who')).toBeVisible(); // the old #r= is ignored: still asks who
+  await expect(p.locator('#b-who-a')).toHaveText("I'm Bubiii");
+  const ls = await p.evaluate(() => ({ key: localStorage.getItem('ah.v1.key'), names: localStorage.getItem('ah.v1.names'), role: localStorage.getItem('ah.v1.role') }));
+  expect(ls).toEqual({ key: null, names: null, role: null });
+  await ctx.close();
+});
+
+test('T1c picker preselects the free slot when the other side is online', async ({ browser, page }) => {
   const key = await freshKey(page);
-  const bad = key.slice(0, 5) + (key[5] === 'A' ? 'B' : 'A') + key.slice(6);
-  await page.goto(`/${SIGNAL}`);
-  await page.fill('#i-link', `https://x.github.io/always-here/#k=${bad}&r=b`);
-  await page.click('#f-link button[type=submit]');
-  await expect(page.locator('#e-link')).toBeVisible();
-  await expect(page.locator('#e-link')).toContainText('incomplete');
-  expect(await stateOf(page)).toBe('setup');
-  await page.fill('#i-link', 'nonsense');
-  await page.click('#f-link button[type=submit]');
-  await expect(page.locator('#e-link')).toContainText("doesn't look like a room link");
+  const ca = await browser.newContext(), cb = await browser.newContext();
+  const a = await openAs(ca, key, 'a');
+  await waitState(a, 'waiting', 10000);
+  const p = await cb.newPage();
+  await p.goto(`/${SIGNAL}&room=${key}`);
+  await expect(p.locator('#who-hint')).toBeVisible({ timeout: 10000 });
+  await expect(p.locator('#b-who-b')).toBeFocused();
+  await expect(p.locator('#b-who-b')).toHaveClass(/primary/);
+  await ca.close(); await cb.close();
 });
 
 test('T2 alone for 20 s: waiting, no tracks, no streams', async ({ browser, page }) => {
@@ -158,7 +189,7 @@ test('T11 sound chip after a gesture-less reload; title shows who is here', asyn
   await expect(a.locator('#chip-sound')).toBeVisible();
   const b = await openAs(cb, key, 'b');
   await waitState(a, 'call', 10000);
-  expect(await a.title()).toContain('You');
+  expect(await a.title()).toContain('baba 🐼');
   await ca.close(); await cb.close();
 });
 
@@ -168,7 +199,7 @@ test('T12 wrong handshake proof never reaches a call', async ({ browser, page })
   const a = await openAs(ca, key, 'a');
   const b = await openAs(cb, key, 'b', { tap: false });
   await b.evaluate(() => { window.__ah.debug.badAuth = true; });
-  await b.locator('#b-ready').click();
+  await b.click('#b-who-b');
   await b.waitForTimeout(10000);
   expect(await stateOf(a)).not.toBe('call');
   expect(await stateOf(b)).not.toBe('call');
@@ -191,8 +222,8 @@ test('C1 @cloud real PeerJS cloud', async ({ browser, page }) => {
   const ca = await browser.newContext(), cb = await browser.newContext();
   const open = async (ctx, role) => {
     const pg = await ctx.newPage();
-    await pg.goto(`/${process.env.RELAY ? "?relay=1" : ""}#k=${key}&r=${role}`);
-    await pg.locator('#b-ready:visible, #b-share-done:visible').first().click();
+    await pg.goto(`/?room=${key}${process.env.RELAY ? '&relay=1' : ''}`);
+    await pg.click(`#b-who-${role}`);
     return pg;
   };
   const a = await open(ca, 'a'); const b = await open(cb, 'b');

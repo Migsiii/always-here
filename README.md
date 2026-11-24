@@ -6,31 +6,21 @@ Plain HTML, CSS and JavaScript. No build step, no server of its own. Video and a
 
 There is no time limit on calls. The page is hosted on GitHub Pages: `https://migsiii.github.io/always-here/`.
 
-## Start a room
+## Using it
 
-1. Open the site and tap **Start our room**.
-2. Copy the invite link and send it **privately** to the other person. Never post it anywhere.
-3. Tap **Done** and allow camera, microphone and notifications once. The camera turns off again straight away.
+There is one room, for the two of us, and nothing to set up or send.
 
-The link holds a random secret key after the `#`. Anyone with the full link can join the room, so treat it like a house key. Nothing about the key is stored in this repository.
+1. Open `https://migsiii.github.io/always-here/`.
+2. First time on a device only: tap **I'm Bubiii** or **I'm baba 🐼**. That tap also allows camera, microphone, sound and notifications. The choice is remembered on that device. If the other side is already online, the free one is highlighted for you.
+3. That's it. Leave the page open. When the other person opens it, you are in a call within a few seconds. Camera and microphone are off while you are alone.
 
-Link format (placeholders only):
+Wrong person picked? **Settings, Switch person** forgets it. Old invite links (`#k=`, `#r=`, `#na=`, `#nb=`) are ignored and removed from the address bar.
 
-```
-<url>#k=<key>&r=b&na=<name a>&nb=<name b>&ice=<relay>
-```
-
-`ice` is optional and holds relay server settings (see "If a call will not connect"). It is saved in that browser and removed from the address bar, like the key. The copied invite link includes it when a relay is set on your device.
-
-`na` and `nb` are optional, URL-encoded display names for the two sides (emoji work). They are saved in that browser, removed from the address bar, and can be edited in Settings. Type them on the share screen and the link is built for you.
-
-## Joining from the link
-
-Open the link in **Safari (iPhone) or Chrome (Android)**, not inside another app's built-in browser (Messenger, Instagram and so on). Tap **Join** once.
-
-**iPhone home-screen app:** Safari and the installed app keep separate storage. Add the page to the home screen first, then open it once from the installed app and paste the link into "I have a link". After that, the home-screen app opens straight into the room.
+Open it in **Safari (iPhone) or Chrome (Android)**, not inside another app's built-in browser (Messenger, Instagram and so on). **iPhone home-screen app:** Safari and the installed app keep separate storage, so pick who you are once in the installed app too.
 
 Phone and desktop, Chrome and Edge, iOS Safari and Android Chrome are all supported. On a phone the flip-camera button appears if there is more than one camera. Picture-in-picture and full screen only show where the browser supports them.
+
+The room key and the two nicknames are constants in the source (`keys.js` `ROOM_KEY`, `app.js` `PEOPLE`). Only nicknames, never full names.
 
 ## If a call will not connect (adding a relay)
 
@@ -43,9 +33,9 @@ Most calls connect directly. Some mobile-data networks block that. The page then
    [{"urls":["turn:<relay host>:3478","turns:<relay host>:443"],"username":"<username>","credential":"<credential>"}]
    ```
 
-3. Either paste that text into **Settings, Relay server (advanced)** on each device and tap **Save relay**, or put it in the link: base64url-encode the same JSON (URL-safe base64, no padding) and add `&ice=<encoded>` after the other link parts. Opening such a link saves it. **Copy invite link** in Settings adds it for you once a relay is set.
+3. Either paste that text into **Settings, Relay server (advanced)** on each device and tap **Save relay**, or open the page once with the same JSON base64url-encoded (URL-safe base64, no padding) after a `#`, as `#ice=<encoded>`. It is saved and removed from the address bar. A shared relay list can also go in the `ICE_SERVERS` constant in `app.js`, but not while the repo is public if it holds a login.
 
-Rules: at most 4 entries, and every URL must start with `turn:`, `turns:` or `stun:`. Anything else is ignored. The value is never logged, never sent anywhere except the relay itself, and is kept only in that browser (`localStorage`, key `ah.v1.ice`). Treat a link that holds relay details like the room link: private.
+Rules: at most 4 entries, and every URL must start with `turn:`, `turns:` or `stun:`. Anything else is ignored. The value is never logged, never sent anywhere except the relay itself, and is kept only in that browser (`localStorage`, key `ah.v1.ice`). Keep any link that holds relay details private.
 
 ## Keeping the always-on side awake (Windows, Chrome or Edge)
 
@@ -58,11 +48,10 @@ Rules: at most 4 entries, and every URL must start with `turn:`, `turns:` or `st
 
 ## Privacy model
 
-- The repository is public, so it contains no secret. The room key is created in your browser and travels only in the link you send.
-- The key is hashed into a room ID. Each side proves it knows the key with a challenge and response before any camera or microphone is switched on.
-- A wrong or mangled link never connects. It just shows a message.
+- The repository is public, so the room key is public too. That is accepted: this is a personal room for two, and it is not advertised. Anyone who read the source could try to join it, and the page only ever connects one other person at a time.
+- Each side still proves it knows the key with a challenge and response before any camera or microphone is switched on.
 - While you are alone, no camera or microphone track exists.
-- Names ride in the link after the key, and are saved only in that browser. They are never in the code or this repository.
+- No login, passcode, relay credential or full name is in this repository. A relay login, if you use one, stays in that browser only.
 
 ## Develop and test
 
@@ -73,7 +62,7 @@ npm test          # two-browser tests with fake camera and mic, 2 workers
 npm run serve     # static server on http://localhost:8080
 ```
 
-Tests start a local PeerJS server on port 9000 and use `?signal=localhost:9000` so they never touch the public cloud. Add `?relay=1` on localhost to force relayed (TURN) media. With no relay set, that cannot connect, which is what the network-failure tests rely on.
+Tests start a local PeerJS server on port 9000 and use `?signal=localhost:9000` so they never touch the public cloud. Add `?room=<key>` (localhost only) to give each test its own room, and `?relay=1` on localhost to force relayed (TURN) media. With no relay set, that cannot connect, which is what the network-failure tests rely on.
 
 ## Deploy
 

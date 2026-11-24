@@ -46,3 +46,9 @@ test('K1 keys: generate, parse, reject, room ids', async ({ page }) => {
   expect([r.verifyOk, r.verifyBadMsg, r.verifyBadKey, r.verifyGarbage]).toEqual([true, false, false, false]);
   expect(r.nonce).toBe(true);
 });
+
+test('K2 the fixed ROOM_KEY is a valid key', async ({ page }) => {
+  await page.goto('/tests/blank.html');
+  const r = await page.evaluate(async () => { const k = await import('/keys.js'); return (await k.parseKey(k.ROOM_KEY)).ok; });
+  expect(r).toBe(true);
+});

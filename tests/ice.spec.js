@@ -17,16 +17,16 @@ test('S1.1 &ice= is saved, stripped from the address bar, never logged, and reac
   const p = await ctx.newPage();
   const logs = [];
   p.on('console', (m) => logs.push(m.text()));
-  await p.goto(`/${SIGNAL}#k=${key}&r=a&ice=${b64u(RELAY)}`);
-  await p.locator('#b-ready:visible, #b-share-done:visible').first().click();
+  await p.goto(`/${SIGNAL}&room=${key}#ice=${b64u(RELAY)}`);
+  await p.click('#b-who-a');
   expect(JSON.parse(await ice(p))).toEqual(RELAY);
   expect(p.url()).not.toContain('ice=');
   expect(p.url()).not.toContain('#');
   // PeerJS probes with its own default config; a real connection uses ours. B dials A, so A gets a connection.
   const otherCtx = await browser.newContext();
   const other = await otherCtx.newPage();
-  await other.goto(`/${SIGNAL}#k=${key}&r=b`);
-  await other.locator('#b-ready:visible, #b-share-done:visible').first().click();
+  await other.goto(`/${SIGNAL}&room=${key}`);
+  await other.click('#b-who-b');
   await p.waitForFunction(() => window.__cfg.some((c) => c.includes('user-placeholder')), null, { timeout: 15000 });
   const cfg = JSON.parse(await p.evaluate(() => window.__cfg.find((c) => c.includes('user-placeholder'))));
   expect(cfg.iceServers).toEqual(expect.arrayContaining([expect.objectContaining({ username: 'user-placeholder' })]));
@@ -47,18 +47,18 @@ test('S1.1 invalid ice values are ignored', async ({ browser, page }) => {
   for (const v of bad) {
     const ctx = await browser.newContext();
     const p = await ctx.newPage();
-    await p.goto(`/${SIGNAL}#k=${key}&r=a&ice=${v}`);
+    await p.goto(`/${SIGNAL}&room=${key}#ice=${v}`);
     expect(await ice(p)).toBeNull();
     await ctx.close();
   }
 });
 
-test('S1.1 Settings relay field: saved, rejected when invalid, cleared when empty, carried in the invite link', async ({ browser, page }) => {
+test('S1.1 Settings relay field: saved, rejected when invalid, cleared when empty', async ({ browser, page }) => {
   const key = await freshKey(page);
-  const ctx = await browser.newContext({ permissions: ['clipboard-read', 'clipboard-write'] });
+  const ctx = await browser.newContext();
   const p = await ctx.newPage();
-  await p.goto(`/${SIGNAL}#k=${key}&r=a`);
-  await p.locator('#b-ready:visible, #b-share-done:visible').first().click();
+  await p.goto(`/${SIGNAL}&room=${key}`);
+  await p.click('#b-who-a');
   await p.click('#b-settings-w');
   await p.fill('#i-relay', 'not json');
   await p.click('#b-relay');
@@ -68,10 +68,6 @@ test('S1.1 Settings relay field: saved, rejected when invalid, cleared when empt
   await p.click('#b-relay');
   await expect(p.locator('#t-relay')).toContainText('saved');
   expect(JSON.parse(await ice(p))).toEqual(RELAY);
-  await p.click('#b-copy-b');
-  const link = await p.evaluate(() => navigator.clipboard.readText());
-  expect(link).toContain('&ice=');
-  expect(JSON.parse(Buffer.from(link.split('&ice=')[1].split('&')[0], 'base64url').toString())).toEqual(RELAY);
   await p.fill('#i-relay', '');
   await p.click('#b-relay');
   expect(await ice(p)).toBeNull();

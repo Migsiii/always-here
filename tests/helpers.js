@@ -7,14 +7,12 @@ export async function freshKey(page) {
   return page.evaluate(async () => (await import('/keys.js')).newKey());
 }
 
-/** Open the app as a role with a given key, tap through first-run. */
+/** Open the app as a role in an isolated test room (?room= works on localhost only), tapping the one first-run step. */
 export async function openAs(context, key, role, { tap = true, extra = '' } = {}) {
   const page = await context.newPage();
   page.on('pageerror', (e) => console.log('[pageerror]', role, e.message));
-  await page.goto(`/${SIGNAL}${extra}#k=${key}&r=${role}`);
-  if (tap) {
-    await page.locator('#b-ready:visible, #b-share-done:visible').first().click();
-  }
+  await page.goto(`/${SIGNAL}&room=${key}${extra}`);
+  if (tap) await page.click(`#b-who-${role}`);
   return page;
 }
 

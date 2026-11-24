@@ -21,9 +21,10 @@ for (const vp of [{ width: 375, height: 812 }, { width: 768, height: 1024 }]) {
     const ctx = await browser.newContext({ viewport: vp });
     const ctx2 = await browser.newContext({ viewport: vp });
     const w = await ctx.newPage();
-    await w.goto(`/${SIGNAL}`);
-    await audit(w, 'welcome');
-    const a = await openAs(ctx, key, 'a');
+    await w.goto(`/${SIGNAL}&room=${key}`);
+    await audit(w, 'who');
+    await w.click('#b-who-a');
+    const a = w;
     await waitState(a, 'waiting', 10000);
     await audit(a, 'waiting');
     const b = await openAs(ctx2, key, 'b');
