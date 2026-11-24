@@ -1,5 +1,8 @@
 // Room key helpers. Pure functions, no DOM, no network.
-// The key lives only in the invite link fragment and localStorage. Never in source.
+// There is one room, for the two of us. Its key is this constant, so opening the site just works.
+// The repo is public, so anyone who reads this could join. That is accepted: the room is personal and
+// the call is only ever between two people. The challenge/response handshake still runs.
+export const ROOM_KEY = '-j-jYcCdKahpiGy6ragHgQRxtN';
 
 const enc = new TextEncoder();
 const subtle = crypto.subtle;

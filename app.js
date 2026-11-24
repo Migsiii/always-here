@@ -1,11 +1,12 @@
-import { newKey, parseKey, peerIds, authKey, sign, verify, randNonce } from './keys.js';
+import { ROOM_KEY, parseKey, peerIds, authKey, sign, verify, randNonce } from './keys.js';
 import { createSignal } from './signal.js';
 import * as media from './media.js';
 
-// Generic defaults only. Real names arrive in the invite link (&na= and &nb=) or are typed into
-// Settings, and are kept in localStorage on each device. They are never in this source.
-export const PEOPLE = { a: 'Me', b: 'You' };
-const NAME_MAX = 24;
+// Nicknames only (never full names). a = the always-on side, b = the one who dials in.
+export const PEOPLE = { a: 'Bubiii', b: 'baba 🐼' };
+// Relay servers baked into the page for later. Empty on purpose: a TURN login must not be in this public repo.
+// A relay can still be set per device in Settings or with &ice= in the address.
+const ICE_SERVERS = [];
 const graphemes = (t) => (typeof Intl !== 'undefined' && Intl.Segmenter
   ? Array.from(new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(t), (x) => x.segment)
   : Array.from(t));
