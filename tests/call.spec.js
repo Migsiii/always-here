@@ -64,7 +64,7 @@ test('T1c picker preselects the free slot when the other side is online', async 
   await ca.close(); await cb.close();
 });
 
-test('T2 alone for 20 s: waiting, no tracks, no streams', async ({ browser, page }) => {
+test('T2 alone for 20 s: waiting, no call tracks, only your own preview', async ({ browser, page }) => {
   const key = await freshKey(page);
   const ctx = await browser.newContext();
   const a = await openAs(ctx, key, 'a');
@@ -72,7 +72,25 @@ test('T2 alone for 20 s: waiting, no tracks, no streams', async ({ browser, page
   await a.waitForTimeout(20000);
   expect(await stateOf(a)).toBe('waiting');
   expect(await a.evaluate(() => window.__ah.localTracks())).toBe(0);
-  expect(await a.evaluate(() => [...document.querySelectorAll('video')].filter((v) => v.srcObject).length)).toBe(0);
+  expect(await a.evaluate(() => window.__ah.previewTracks())).toBe(1);
+  expect(await a.evaluate(() => [...document.querySelectorAll('video')].filter((v) => v.srcObject).map((v) => v.id))).toEqual(['v-preview']);
+  await ctx.close();
+});
+
+test('T2b Hide me: preview off, camera released, remembered after reload', async ({ browser, page }) => {
+  const key = await freshKey(page);
+  const ctx = await browser.newContext();
+  const a = await openAs(ctx, key, 'a');
+  await waitState(a, 'waiting', 10000);
+  await a.waitForFunction(() => window.__ah.previewTracks() === 1, null, { timeout: 8000 });
+  await a.click('#chip-preview');
+  await a.waitForFunction(() => window.__ah.previewTracks() === 0, null, { timeout: 5000 });
+  await expect(a.locator('#chip-preview')).toHaveText(/Show me/);
+  await expect(a.locator('#wait-preview')).toBeHidden();
+  await a.reload();
+  await waitState(a, 'waiting', 10000);
+  await a.waitForTimeout(3000);
+  expect(await a.evaluate(() => window.__ah.previewTracks())).toBe(0);
   await ctx.close();
 });
 
@@ -97,7 +115,7 @@ test('T5 B leaves: A back to waiting within 15 s, tracks stopped', async ({ brow
   await p.b.close({ runBeforeUnload: true });
   await waitState(p.a, 'waiting', 15000);
   expect(await p.a.evaluate(() => window.__ah.localTracks())).toBe(0);
-  expect(await p.a.evaluate(() => [...document.querySelectorAll('video')].filter((v) => v.srcObject).length)).toBe(0);
+  expect(await p.a.evaluate(() => [...document.querySelectorAll('video')].filter((v) => v.srcObject && v.id !== 'v-preview').length)).toBe(0);
   await p.close();
 });
 

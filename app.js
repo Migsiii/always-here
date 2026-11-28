@@ -6,7 +6,11 @@ import * as media from './media.js';
 export const PEOPLE = { a: 'Bubiii', b: 'baba 🐼' };
 // Relay servers baked into the page for later. Empty on purpose: a TURN login must not be in this public repo.
 // A relay can still be set per device in Settings or with &ice= in the address.
-const ICE_SERVERS = [];
+// Relay (TURN) for networks where the two devices can't connect directly (Wi-Fi isolation, no hairpin NAT,
+// mobile data). Free ExpressTURN account; these are relay-only credentials (worst case if copied: someone uses the quota).
+const ICE_SERVERS = [
+  { urls: ['turn:free.expressturn.com:3478', 'turn:free.expressturn.com:3478?transport=tcp'], username: '000000002111308733', credential: 'zwMQ93FQv30Pm923NLZKovsKtKk=' },
+];
 const graphemes = (t) => (typeof Intl !== 'undefined' && Intl.Segmenter
   ? Array.from(new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(t), (x) => x.segment)
   : Array.from(t));
@@ -68,12 +72,44 @@ const otherName = () => nameOf(other());
 const SCREENS = ['s-who', 's-ready', 's-wait', 's-call', 's-else'];
 function show(id) {
   for (const s of SCREENS) $(s).hidden = s !== id;
+  syncPreview(id);
   const h = $(id).querySelector('h1');
   if (h && id !== 's-call') { h.setAttribute('tabindex', '-1'); try { h.focus({ preventScroll: true }); } catch {} }
 }
+// ---------- self preview on the waiting screen ----------
+// Shows your own camera while you wait (video only, never sent anywhere). "Hide me" turns it off and is remembered.
+let previewStream = null, previewGen = 0;
+const previewWanted = () => store.get('preview') !== 'off';
+function stopPreview() {
+  previewGen++;
+  media.stopStream(previewStream); previewStream = null;
+  $('v-preview').srcObject = null;
+  $('wait-preview').hidden = true; $('wait-pulse').hidden = false;
+}
+async function startPreview() {
+  if (previewStream) return;
+  const gen = ++previewGen;
+  let t = null;
+  try { t = await media.getTrack('video', facing); } catch { return; }
+  if (gen !== previewGen || $('s-wait').hidden || !previewWanted()) { try { t.stop(); } catch {} return; }
+  previewStream = new MediaStream([t]);
+  const v = $('v-preview'); v.srcObject = previewStream; v.play().catch(() => {});
+  $('wait-preview').hidden = false; $('wait-pulse').hidden = true;
+}
+function renderPreviewChip() {
+  const on = previewWanted(), c = $('chip-preview');
+  c.setAttribute('aria-pressed', String(on));
+  c.querySelector('span').textContent = on ? 'Hide me' : 'Show me';
+  c.querySelector('use').setAttribute('href', on ? './icons.svg#cam-off' : './icons.svg#cam');
+}
+function syncPreview(id) {
+  if (id === 's-wait' && previewWanted()) startPreview(); else stopPreview();
+}
+
 function say(text) { const l = $('live'); l.textContent = ''; setTimeout(() => { l.textContent = text; }, 50); }
 const storedIce = () => { try { return cleanIce(JSON.parse(store.get('ice') || '[]')) || []; } catch { return []; } };
-const iceList = () => [...(cleanIce(ICE_SERVERS) || []), ...storedIce()];
+// Tests (localhost only) can set window.__AH_NO_BUILTIN_ICE to simulate a network with no relay.
+const iceList = () => [...((isLocal && window.__AH_NO_BUILTIN_ICE) ? [] : (cleanIce(ICE_SERVERS) || [])), ...storedIce()];
 
 // ---------- routing ----------
 function route() {
@@ -779,6 +815,12 @@ function renderChips() {
 
 function wireAlerts() {
   $('chip-sound').addEventListener('click', async () => { await media.unlockAudio(); renderChips(); });
+  renderPreviewChip();
+  $('chip-preview').addEventListener('click', () => {
+    store.set('preview', previewWanted() ? 'off' : 'on');
+    renderPreviewChip();
+    syncPreview(state === 'call' ? 's-call' : ($('s-wait').hidden ? '' : 's-wait'));
+  });
   $('chip-alerts').addEventListener('click', async () => {
     try { await Notification.requestPermission(); } catch {}
     renderChips();
@@ -828,6 +870,7 @@ async function boot() {
 window.__ah = {
   state: () => state,
   role: () => role,
+  previewTracks: () => (previewStream ? previewStream.getTracks().filter((t) => t.readyState === 'live').length : 0),
   localTracks: () => (localStream ? localStream.getTracks().filter((t) => t.readyState === 'live').length : 0),
   remoteLive: () => { const v = $('v-remote'); return !!v.srcObject && v.readyState >= 2 && v.videoWidth > 0; },
   lastMessage: () => lastMessage,

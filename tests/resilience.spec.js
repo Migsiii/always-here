@@ -171,7 +171,7 @@ test('R2 flip: old camera is released first and a failing new camera falls back'
   const a = await openAs(ca, key, 'a');
   const b = await openAs(cb, key, 'b');
   await Promise.all([waitState(a, 'call', 15000), waitState(b, 'call', 15000)]);
-  await b.evaluate(() => { window.__live = () => window.__ah.localTracks(); });
+  await b.evaluate(() => { window.__live = () => window.__ah.localTracks(); window.__gum = []; });
   await b.evaluate(() => { document.getElementById('b-flip').hidden = false; });
   await b.mouse.move(100, 150);
   await b.click('#b-flip');
@@ -188,8 +188,8 @@ test('S1.3 relay-only with no relay: after 2 failures the note shows, B backs of
   test.setTimeout(120000);
   const key = await freshKey(page);
   const ca = await browser.newContext(), cb = await browser.newContext();
-  for (const c of [ca, cb]) await c.addInitScript(() => { window.__AH_DIAL_MS = 3000; window.__AH_MEDIA_MS = 3000; });
-  // ?relay=1 forces relayed candidates only; the default ICE list has no TURN now, so nothing can connect.
+  for (const c of [ca, cb]) await c.addInitScript(() => { window.__AH_DIAL_MS = 3000; window.__AH_MEDIA_MS = 3000; window.__AH_NO_BUILTIN_ICE = true; });
+  // ?relay=1 forces relayed candidates only, and the built-in relay is switched off, so nothing can connect.
   const a = await openAs(ca, key, 'a', { extra: '&relay=1' });
   const b = await openAs(cb, key, 'b', { extra: '&relay=1' });
   await expect(b.locator('#wait-netfail')).toBeHidden();

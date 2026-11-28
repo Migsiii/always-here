@@ -52,7 +52,8 @@
     <section id="s-wait" class="screen" hidden aria-labelledby="h-wait">
       <button class="icon-btn corner" id="b-settings-w" type="button" aria-label="Settings"><svg aria-hidden="true"><use href="./icons.svg#settings"/></svg></button>
       <div class="center">
-        <div class="pulse" aria-hidden="true"><span id="wait-initial"></span></div>
+        <div class="preview" id="wait-preview" hidden><video id="v-preview" autoplay playsinline muted aria-label="Your camera preview"></video></div>
+        <div class="pulse" id="wait-pulse" aria-hidden="true"><span id="wait-initial"></span></div>
         <h1 id="h-wait">Waiting…</h1>
         <p id="wait-last" class="muted"></p>
         <p id="wait-status" class="status muted" role="status"></p>
@@ -60,6 +61,7 @@
         <p id="wait-media" class="error" role="alert" hidden>Camera or microphone is blocked. Allow them in your browser settings, then reopen or tap the page.</p>
         <div class="row center-row">
           <button id="chip-sound" class="chip" type="button" hidden><svg aria-hidden="true"><use href="./icons.svg#sound"/></svg><span>Enable sound</span></button>
+          <button id="chip-preview" class="chip" type="button" aria-pressed="true"><svg aria-hidden="true"><use href="./icons.svg#cam-off"/></svg><span>Hide me</span></button>
           <button id="chip-alerts" class="chip" type="button" hidden><svg aria-hidden="true"><use href="./icons.svg#bell"/></svg><span>Turn on alerts</span></button>
         </div>
       </div>
